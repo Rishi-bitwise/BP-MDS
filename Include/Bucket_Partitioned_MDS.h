@@ -125,7 +125,7 @@ namespace Bucket_Partitioned_MDS
         Solution solve(
             const CVRP&) const;
 
-        void create_buckets(
+        void create_buckets(angle_t alpha,
             const CVRP&,
             std::vector <std::vector <node_t>>&) const;
     };

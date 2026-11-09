@@ -5,15 +5,17 @@
 #include <random>
 #include <algorithm>
 #include <climits>
+#include <cmath>
 
 namespace Bucket_Partitioned_MDS
 {
-    void Solver::create_buckets(
+    void Solver::create_buckets(angle_t alpha,
         const CVRP& cvrp, 
         std::vector <std::vector <node_t>>& buckets) const 
     {
         const int num_buckets = buckets.size();
         const int N = cvrp.size();
+        //If only 1 bucket exists then push all the elements into it.
         if(num_buckets == 1)
         {
             // Push all the vertices into one bucket
@@ -25,15 +27,6 @@ namespace Bucket_Partitioned_MDS
             return;
         }
 
-        std::vector<Unit_Vector_2D> seperating_vectors(num_buckets + 1);
-        Unit_Vector_2D xaxis(1, 0); 
-        seperating_vectors[0] = seperating_vectors[num_buckets] = xaxis;
-        for(int i = 1; i < num_buckets; i++)
-        {
-            // Create a vector by rotating x-axis by i * alpha degrees
-            seperating_vectors[i] = Unit_Vector_2D(xaxis, i * alpha);
-        }
-
         // Depot goes into all buckets
         auto depot = cvrp.depot();
         node_t u = depot;
@@ -42,19 +35,22 @@ namespace Bucket_Partitioned_MDS
             buckets[i].push_back(u); 
         }
 
-        // Assigning bucket to each vertex
+        // Assigning bucket to each vertex based on the angle of the vector u
         for(u = 1; u < N; u++)
         {
-            Unit_Vector_2D vec(cvrp[depot], cvrp[u]);
-            for(int i = 0; i < num_buckets; i++)
-            {
-                if(vec.is_in_between(seperating_vectors[i], seperating_vectors[i + 1]))
-                {
-                    // Pushing node u in the bucket i
-                    buckets[i].push_back(u);
-                    break;
-                }
-            }
+            cord_t dx = cvrp[u].x - cvrp[depot].x;
+            cord_t dy = cvrp[u].y - cvrp[depot].y;
+
+            angle_t angle_deg = std::atan2(dy, dx) * (180.0 / PI);
+            if(angle_deg < 0)
+                angle_deg += 360.0;
+
+            int bucket_id = (int)(angle_deg / alpha);
+            
+            if(bucket_id >= num_buckets)  
+                bucket_id = num_buckets-1;        //Precision might cause angle_deg to round up to 360, in which case bucket_id==num_buckets
+            
+            buckets[bucket_id].push_back(u);
         }
 
         return;
@@ -145,9 +141,10 @@ namespace Bucket_Partitioned_MDS
             // Get the corresponding vertex in entire CVRP space                                      
             v = bucket[v_index];                                                       
 
-            // Loop over all neighbours of v_index 
-            for(node_t w_index = 0; w_index < num_nodes; w_index++) 
+            // Loop over nodes in the min_heap that are not added to the MST to update the weights wrt v 
+            for(node_t vec_index = 0; vec_index <= min_heap.last_index; vec_index++) 
             {
+                node_t w_index = min_heap.vec[vec_index].v;
                 node_t w = bucket[w_index];
                 min_heap.DecreaseKey(Min_Heap_Node(v_index, w_index, cvrp.distance(v, w)));
             }
@@ -571,7 +568,7 @@ namespace Bucket_Partitioned_MDS
         // Useful values for solving
         const int num_buckets = std::ceil(360.00 / alpha); 
         std::vector <std::vector<node_t>> buckets(num_buckets);
-        create_buckets(cvrp, buckets); 
+        create_buckets(alpha, cvrp, buckets); 
 
         // Paritioning the problem for exploitation
         #pragma omp parallel for 
