@@ -36,6 +36,7 @@ namespace Bucket_Partitioned_MDS
         }
 
         // Assigning bucket to each vertex based on the angle of the vector u
+        #pragma omp parallel for
         for(u = 1; u < N; u++)
         {
             cord_t dx = cvrp[u].x - cvrp[depot].x;
